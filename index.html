@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="撮影ナビ">
+<meta name="theme-color" content="#101013">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>撮影ナビ</title>
+<style>
+/* Layout: 4タブ（いま撮る／露出／レシピ／七五三）。黒い本体にフィルムのオレンジ。数値は液晶風の発光表示 */
+:root{
+  color-scheme:dark;
+  --room:#101013; --panel:#18181c; --panel-2:#202026; --edge:#33333b; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
+  --glass:#08080a; --text:#ebe9e6; --muted:#9a968f; --dim:#6b6862;
+  --film:#ff9f5a; --film-hot:#ffd2ad; --film-dim:rgba(255,159,90,.14); --film-glow:rgba(255,140,60,.45);
+  --ok:#7fd4a8; --warn:#ffcf5a; --bad:#ff8a7a; --canon:#e05a4e; --fuji:#7fbf8f;
+  --f-ui:"Hiragino Sans","Hiragino Kaku Gothic ProN","BIZ UDPGothic","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --f-num:ui-monospace,"SF Mono","Menlo","Consolas",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--room);color:var(--text)}
+body{font-family:var(--f-ui);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px calc(env(safe-area-inset-bottom,0px) + 86px)}
+header.top{display:flex;align-items:baseline;justify-content:space-between;margin:2px 2px 12px}
+header.top b{font-size:15px;letter-spacing:.24em}
+header.top b::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:9px;vertical-align:2px;background:var(--film);box-shadow:0 0 8px var(--film-glow)}
+header.top span{font-family:var(--f-num);font-size:11px;color:var(--muted);letter-spacing:.1em}
+.lab{font-size:12px;color:var(--muted);letter-spacing:.08em;margin:12px 2px 6px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chips button{font:600 13.5px var(--f-ui);color:var(--text);background:var(--panel-2);border:1px solid var(--edge);border-radius:999px;padding:8px 13px}
+.chips button.on{background:var(--film);color:#241303;border-color:var(--film)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-top:12px;overflow:hidden}
+.card .hd{display:flex;align-items:center;gap:10px;padding:14px 16px 4px}
+.cam{font-size:11px;font-weight:700;letter-spacing:.08em;border-radius:6px;padding:2px 8px}
+.cam.fuji{background:rgba(127,191,143,.16);color:var(--fuji)} .cam.canon{background:rgba(224,90,78,.16);color:#ff9a90}
+.card h2{font-size:17px;margin:0}
+.bd{padding:6px 16px 16px;display:grid;gap:10px}
+.lcd{border-radius:12px;padding:10px 12px;background:linear-gradient(180deg,#0d0d10,var(--glass));box-shadow:0 0 0 1px var(--edge);display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center}
+.lcd div{display:grid;gap:1px}
+.lcd small{font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+.lcd b{font-family:var(--f-num);font-size:clamp(1rem,4.6vw,1.3rem);color:var(--film-hot);text-shadow:0 0 10px var(--film-glow);white-space:nowrap}
+.meter{display:grid;gap:4px}
+.bar{position:relative;height:9px;border-radius:5px;background:var(--panel-2);overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:5px}
+.ml{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+.ml b{font-family:var(--f-num);font-weight:600}
+table.kv{width:100%;border-collapse:collapse;font-size:13.5px}
+.kv td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.kv td:first-child{color:var(--muted);width:8.5em;padding-right:8px}
+.tips{margin:0;padding-left:1.15em;display:grid;gap:6px;font-size:13.5px}
+.note{font-size:12px;color:var(--muted);line-height:1.7}
+.alt{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.alt b{color:var(--text)}
+
+/* 露出シミュレーター */
+.stage{position:relative;aspect-ratio:3/2;max-width:100%;border-radius:12px;overflow:hidden;background:#000}
+.stage .layer{position:absolute;inset:0}
+#scene{transition:filter .15s}
+#bg{position:absolute;inset:-6%;}
+#subj{position:absolute;inset:0}
+#noise{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:screen;pointer-events:none}
+.ro{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.ro div{background:var(--panel-2);border-radius:10px;padding:8px 10px}
+.ro small{display:block;font-size:11px;color:var(--muted)}
+.ro b{font-family:var(--f-num);font-size:15px}
+.sl{display:grid;gap:3px;margin-top:10px}
+.sl .t{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.sl .t b{font-family:var(--f-num);color:var(--film-hot);font-size:15px}
+input[type=range]{width:100%;accent-color:var(--film);height:28px}
+
+/* レシピ */
+.rc{border-left:5px solid var(--sw);}
+.rc summary{list-style:none;cursor:pointer;padding:13px 16px;display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center}
+.rc summary::-webkit-details-marker{display:none}
+.rc .no{font-family:var(--f-num);font-size:13px;color:var(--muted);grid-row:span 2}
+.rc .nm{font-family:var(--f-num);font-size:18px;font-weight:700;letter-spacing:.06em}
+.rc .sb{font-size:12.5px;color:var(--muted);grid-column:2}
+.rc .bs{grid-row:1/span 2;grid-column:3;font-size:11.5px;color:var(--film);text-align:right}
+.rc[open] summary{border-bottom:1px solid var(--line)}
+
+/* チェックリスト */
+.ck{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:6px 0;border-bottom:1px solid var(--line)}
+.ck input{width:22px;height:22px;accent-color:var(--film);flex:none;margin-top:1px}
+.ck.done span{color:var(--dim);text-decoration:line-through}
+.step{display:grid;grid-template-columns:3.2em 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.step .s{font-family:var(--f-num);color:var(--film);font-weight:700}
+.step small{display:block;color:var(--muted);font-size:12.5px}
+
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;background:rgba(16,16,19,.92);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line-2);padding:6px 8px calc(env(safe-area-inset-bottom,0px) + 6px)}
+nav.tabs div{display:flex;max-width:640px;width:100%}
+nav.tabs button{flex:1;background:none;border:0;color:var(--muted);font:600 12px var(--f-ui);padding:6px 0 4px;display:grid;justify-items:center;gap:3px}
+nav.tabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs button.on{color:var(--film)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><b>撮影ナビ</b><span>X-T5 ／ EOS R50 V</span></header>
+
+<!-- ========== いま撮る ========== -->
+<section id="v-now">
+  <div class="lab">どこで撮る？</div><div class="chips" id="cPlace"></div>
+  <div class="lab">子どもの動きは？</div><div class="chips" id="cMove"></div>
+  <div class="lab">残したいのは？</div><div class="chips" id="cGoal"></div>
+  <div id="rec"></div>
+</section>
+
+<!-- ========== 露出 ========== -->
+<section id="v-exp" hidden>
+  <div class="stage" id="stage">
+    <div class="layer" id="scene">
+      <svg id="bg" viewBox="0 0 300 200" preserveAspectRatio="xMidYMid slice"></svg>
+      <svg id="subj" viewBox="0 0 300 200" preserveAspectRatio="xMidYMid slice"></svg>
+    </div>
+    <canvas id="noise" width="240" height="160"></canvas>
+  </div>
+  <div class="ro">
+    <div><small>明るさ</small><b id="oExp">±0</b></div>
+    <div><small>被写体ブレ</small><b id="oMot">—</b></div>
+    <div><small>ピントの合う奥行き</small><b id="oDof">—</b></div>
+  </div>
+  <div class="lab">光</div><div class="chips" id="eLight"></div>
+  <div class="lab">動き</div><div class="chips" id="eMove"></div>
+  <div class="sl"><div class="t"><span>絞り（F値）</span><b id="tF"></b></div><input type="range" id="rF" min="0" max="12" step="1"></div>
+  <div class="sl"><div class="t"><span>シャッター速度</span><b id="tS"></b></div><input type="range" id="rS" min="0" max="11" step="1"></div>
+  <div class="sl"><div class="t"><span>ISO感度</span><b id="tI"></b></div><input type="range" id="rI" min="0" max="7" step="1"></div>
+  <div class="sl"><div class="t"><span>レンズ（X-T5）</span><b id="tL"></b></div><input type="range" id="rL" min="0" max="3" step="1"></div>
+  <div class="sl"><div class="t"><span>被写体までの距離</span><b id="tD"></b></div><input type="range" id="rD" min="0" max="5" step="1"></div>
+  <p class="note" id="eAdvice" style="margin-top:12px"></p>
+  <p class="note">明るさ・ブレ・ボケは計算値をもとにした模式図です。光の明るさ（EV）は場面ごとの目安です。</p>
+</section>
+
+<!-- ========== レシピ ========== -->
+<section id="v-rec" hidden>
+  <p class="note" style="margin:0 2px 4px">X-T5 マニュアル v2.7 の C1〜C7。全レシピ明瞭度0。名前の末尾「35」は XF35mmF1.4＋ブラックミスト専用です。</p>
+  <div id="recipes"></div>
+</section>
+
+<!-- ========== 七五三 ========== -->
+<section id="v-753" hidden>
+  <div class="card"><div class="hd"><h2>七五三・神社での撮影</h2></div><div class="bd">
+    <p class="note" style="margin:0">スタジオ撮影とは別に、神社での参拝を自分で撮るときの準備と撮り方です。</p>
+  </div></div>
+  <div class="card"><div class="hd"><h2>前日までの準備</h2><span class="note" id="ckCount" style="margin-left:auto"></span></div><div class="bd" id="checks"></div></div>
+  <div class="card"><div class="hd"><h2>当日の撮り方</h2></div><div class="bd" id="flow"></div></div>
+  <div class="card"><div class="hd"><h2>着物を撮るときの注意</h2></div><div class="bd"><ul class="tips">
+    <li><b>赤い着物は飽和しやすい</b>：赤が潰れて柄が消えたら、露出補正を −1/3 下げるか、Qメニューでカラーを1段下げる。C1・C4はカラー+2なので特に注意。</li>
+    <li><b>白い半衿と顔の両立</b>：ハイライト−1〜−1.5のレシピ（C1・C4・C2）は白飛びに強い。晴天の屋外で衿が飛んだら −1/3。</li>
+    <li><b>千歳飴・草履まで入れる全身</b>：XF35では2.5〜3m離れる。XF18-55の35mm付近、F4にすると全身にピントが来る。</li>
+    <li><b>境内の木陰</b>：顔が青くなりやすい。C3 OSOTOのWBは「晴れ」固定なので、木陰ではC2 FUDAN（WBオート）に切り替える。</li>
+  </ul></div></div>
+  <p class="note" style="margin:12px 4px 0">社殿の中（昇殿参拝・祈祷中）の撮影可否は、当日神社の案内に従ってください。</p>
+</section>
+</div>
+
+<nav class="tabs"><div>
+  <button type="button" data-tab="now" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8.5 6.5l1.4-2.5h4.2l1.4 2.5"/></svg>いま撮る</button>
+  <button type="button" data-tab="exp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v6M18 7l-4.5 3.5M19.5 15l-5.5-1.5M12 20.5v-6M6 17l4.5-3.5M4.5 9l5.5 1.5"/></svg>露出</button>
+  <button type="button" data-tab="rec"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>レシピ</button>
+  <button type="button" data-tab="753"><svg viewBox="0 0 24 24"><path d="M4 9h16M6 9v11M18 9v11M3 5.5c3 1.5 15 1.5 18 0"/><path d="M9 13h6"/></svg>七五三</button>
+</div></nav>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+/* ---------- レシピ（X-T5 マニュアル v2.7） ---------- */
+const RE=[
+ {id:'C1',name:'HADA35',sub:'肌 ／ 窓からの自然光',base:'ASTIA／ソフト',sw:'#E8B9A0',lens:'XF35専用',iso:'AUTO2（上限6400）',ev:'+2/3',
+  p:[['グレイン','OFF'],['カラークローム','弱'],['カラークロームブルー','OFF'],['スムーススキン','OFF'],['ホワイトバランス','オート（雰囲気優先）R+1・B−2'],['ダイナミックレンジ','DR100'],['ハイライト','−1'],['シャドウ','+1'],['カラー','+2'],['シャープネス','−1'],['高感度NR','−3'],['明瞭度','0']]},
+ {id:'C2',name:'FUDAN',sub:'普段 ／ 迷ったらこれ',base:'REALA ACE',sw:'#C9C2B4',lens:'全レンズ',iso:'AUTO1 または AUTO2',ev:'+1/3',
+  p:[['グレイン','弱／小'],['カラークローム','強'],['カラークロームブルー','弱'],['スムーススキン','OFF'],['ホワイトバランス','オート R+1・B−1'],['ダイナミックレンジ','DR200'],['ハイライト','−1'],['シャドウ','0'],['カラー','+1'],['シャープネス','−1'],['高感度NR','−3'],['明瞭度','0']]},
+ {id:'C3',name:'OSOTO',sub:'お外 ／ 公園・晴れの日・旅行',base:'クラシッククローム',sw:'#8FA9B8',lens:'全レンズ',iso:'AUTO1（上限3200）',ev:'0（逆光は+2/3）',
+  p:[['グレイン','弱／大'],['カラークローム','強'],['カラークロームブルー','強'],['スムーススキン','OFF'],['ホワイトバランス','晴れ R+1・B−2（曇天はオート）'],['ダイナミックレンジ','DR200'],['ハイライト','−1'],['シャドウ','+1'],['カラー','+2'],['シャープネス','0'],['高感度NR','−4'],['明瞭度','0']]},
+ {id:'C4',name:'AKARI35',sub:'灯り ／ 夕方・室内灯・夜',base:'ASTIA／ソフト',sw:'#E3A86A',lens:'XF35専用',iso:'AUTO2 または AUTO3',ev:'+2/3',
+  p:[['グレイン','OFF'],['カラークローム','弱'],['カラークロームブルー','弱'],['スムーススキン','OFF'],['ホワイトバランス','オート（雰囲気優先）R+2・B−2'],['ダイナミックレンジ','DR100'],['ハイライト','−1.5'],['シャドウ','+1'],['カラー','+2'],['シャープネス','−1'],['高感度NR','−3'],['明瞭度','0']]},
+ {id:'C5',name:'TAIIKU',sub:'体育館 ／ 発表会・イベント会場',base:'PRO Neg. Std',sw:'#7A8A72',lens:'全レンズ',iso:'AUTO3',ev:'−2/3 〜 −1',
+  p:[['グレイン','OFF'],['カラークローム','弱'],['カラークロームブルー','OFF'],['スムーススキン','OFF'],['ホワイトバランス','色温度 5000K R+2・B+2'],['ダイナミックレンジ','DR200'],['ハイライト','−1'],['シャドウ','0'],['カラー','+1'],['シャープネス','0'],['高感度NR','−2'],['明瞭度','0']]},
+ {id:'C6',name:'MONOKURO',sub:'白黒 ／ 光が悪い日の逃げ道',base:'ACROS＋R',sw:'#8A8A8A',lens:'全レンズ',iso:'制限なし',ev:'−1/3',
+  p:[['グレイン','弱／小'],['モノクロカラー','WC +2 ／ MG 0'],['ホワイトバランス','オート'],['ダイナミックレンジ','DR400'],['ハイライト','−0.5'],['シャドウ','+2'],['シャープネス','+1'],['高感度NR','−4'],['明瞭度','0']]},
+ {id:'C7',name:'OMOIDE35',sub:'思い出 ／ 天井灯の室内',base:'クラシックネガ',sw:'#A65A4E',lens:'XF35専用',iso:'AUTO2',ev:'+1/3',
+  p:[['グレイン','強／小'],['カラークローム','強'],['カラークロームブルー','弱'],['スムーススキン','OFF'],['ホワイトバランス','オート R+2・B−1'],['ダイナミックレンジ','DR400'],['ハイライト','−1.5'],['シャドウ','0'],['カラー','+2'],['シャープネス','−1'],['高感度NR','−4'],['明瞭度','0']]},
+];
+const R=Object.fromEntries(RE.map(r=>[r.id,r]));
+
+/* ---------- 場面 ---------- */
+// ev: ISO100での明るさの目安（EV）。fuji: X-T5の第1候補レシピとレンズ、alt: 第2候補
+const PLACES=[
+ {k:'window',t:'窓辺の室内',ev:8.5,recipe:'C1',alt:'C7',lens:'XF35',tip:'窓を横か斜め前に。正面の窓は顔が平板になる。'},
+ {k:'ceiling',t:'天井灯だけの室内',ev:6.5,recipe:'C7',alt:'C1',lens:'XF35',tip:'真上の光は目の下に影が出る。少ししゃがんで目線を上げてもらうと影が消える。'},
+ {k:'night',t:'夕方・夜の室内灯',ev:5.5,recipe:'C4',alt:'C7',lens:'XF35',tip:'暗くても露出はプラス。ろうそく・電飾が画面に入るとミストが効く。'},
+ {k:'sunny',t:'晴れの屋外',ev:14.5,recipe:'C3',alt:'C2',lens:'XF18-55',tip:'真上の日差しは帽子の影が顔に落ちる。木陰か、太陽を背にした逆光に。'},
+ {k:'shade',t:'曇り・日陰',ev:12,recipe:'C2',alt:'C3',lens:'XF18-55',tip:'C3の「晴れ」WBは日陰で青くなるので、C2（WBオート）が安全。'},
+ {k:'back',t:'逆光',ev:12.5,recipe:'C1',alt:'C7',lens:'XF35',tip:'露出補正は+2/3〜+1。髪の輪郭が光る。顔が暗ければさらに+1/3。'},
+ {k:'gym',t:'体育館・ホール',ev:8,recipe:'C5',alt:'C6',lens:'XF55-200',tip:'色が濁るならC6 MONOKUROへ。発表会は客席の通路側・前寄りに。'},
+ {k:'shrine',t:'神社・お寺の屋内',ev:6,recipe:'C4',alt:'C2',lens:'XF35',tip:'木の内装は光を吸うので暗い。フラッシュは使わない。'},
+];
+const MOVES=[
+ {k:'still',t:'じっとしている',ss:125,v:0.15,lab:'1/125'},
+ {k:'walk',t:'歩く・遊ぶ',ss:250,v:1,lab:'1/250'},
+ {k:'run',t:'走る・踊る',ss:500,v:3,lab:'1/500'},
+];
+const GOALS=[{k:'photo',t:'写真（作品として）'},{k:'record',t:'記録・動画'}];
+// レンズ：開放F値（ズームは主に使う焦点距離側）
+const LENS={
+ 'XF35':{name:'XF35mmF1.4 R（ブラックミスト）',f:1.4,use:2,fl:35},
+ 'XF23':{name:'XF23mmF2 R WR',f:2,use:2,fl:23},
+ 'XF18-55':{name:'XF18-55mmF2.8-4',f:2.8,use:4,fl:35},
+ 'XF55-200':{name:'XF55-200mmF3.5-4.8',f:4.8,use:4.8,fl:135},
+ 'RF-S14-30':{name:'RF-S14-30mm F4-6.3 PZ',f:4,use:5,fl:24},
+ 'RF-S55-210':{name:'RF-S55-210mm F5-7.1',f:7.1,use:7.1,fl:135},
+};
+const isoNeed=(N,ss,ev)=>100*Math.pow(2,Math.log2(N*N*ss)-ev);
+const isoTxt=v=>v<100?'100':v>51200?'51200超':String(Math.round(v/100)*100>=1000?Math.round(v/100)*100:Math.round(v/10)*10);
+
+let st={place:'window',move:'still',goal:'photo'};
+try{const s=JSON.parse(localStorage.getItem('camnavi-now')||'null');if(s)st=Object.assign(st,s)}catch(e){}
+function chips(id,list,key,cb){
+  const el=$(id);el.innerHTML='';
+  list.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.t;b.classList.toggle('on',st[key]===o.k);
+    b.addEventListener('click',()=>{st[key]=o.k;try{localStorage.setItem('camnavi-now',JSON.stringify(st))}catch(e){}chips(id,list,key,cb);cb()});el.appendChild(b)});
+}
+
+function meter(iso,limit){
+  const p=Math.min(100,Math.log2(Math.max(100,iso)/100)/Math.log2(25600/100)*100);
+  const col=iso<=limit*0.5?'var(--ok)':iso<=limit?'var(--warn)':'var(--bad)';
+  const verdict=iso<=limit*0.5?'余裕あり':iso<=limit?'上限に近い（ノイズが増える）':'足りない（暗い／ブレる）';
+  return `<div class="meter"><div class="ml"><span>必要なISO感度</span><b style="color:${col}">ISO ${isoTxt(iso)}　${verdict}</b></div>
+    <div class="bar"><i style="width:${p}%;background:${col}"></i></div><div class="ml"><span>100</span><span>800</span><span>6400</span><span>25600</span></div></div>`;
+}
+
+function recommend(){
+  const P=PLACES.find(p=>p.k===st.place),M=MOVES.find(m=>m.k===st.move);
+  const useCanon=st.goal==='record'||st.move==='run'||(st.place==='gym'&&st.move!=='still');
+  let h='';
+  // ---- X-T5
+  const fujiCard=(primary)=>{
+    const lensKey=P.lens;
+    const L=LENS[lensKey];const r=R[P.recipe];
+    let N=L.use;if(st.move==='still'&&L.f<=1.4)N=1.4;
+    if(st.move!=='still'&&L.f<=1.4)N=2;
+    const iso=isoNeed(N,M.ss,P.ev);
+    const lim=r.id==='C3'?3200:r.id==='C1'?6400:12800;
+    return `<div class="card"><div class="hd"><span class="cam fuji">X-T5</span><h2>${r.id} ${r.name}</h2>${primary?'':'<span class="note" style="margin-left:auto">サブ</span>'}</div><div class="bd">
+      <div class="lcd"><div><small>絞り</small><b>F${N}</b></div><div><small>シャッター</small><b>1/${M.ss}〜</b></div><div><small>ISO</small><b>${r.iso.split('（')[0].split(' ')[0]}</b></div><div><small>露出補正</small><b>${r.ev.split('（')[0].split(' 〜')[0]}</b></div></div>
+      ${meter(iso,lim)}
+      <table class="kv">
+        <tr><td>レンズ</td><td>${L.name}</td></tr>
+        <tr><td>ダイヤル</td><td>絞りリング F${N}／シャッターダイヤル A（低速限界 1/${M.ss}）／ISOダイヤル A（${r.iso}）</td></tr>
+        <tr><td>AF</td><td>${st.move==='still'?'AF-S・シングルポイント（瞳に合わせる）':'AF-C・ゾーン'}／顔・瞳検出 ON／被写体検出 OFF</td></tr>
+        <tr><td>ドライブ</td><td>${st.move==='still'?'単写（S）':st.move==='walk'?'低速連写（CL）':'高速連写（CH）'}</td></tr>
+        <tr><td>第2候補</td><td>${P.alt} ${R[P.alt].name}（${R[P.alt].sub.split('／')[1].trim()}）</td></tr>
+      </table>
+      <ul class="tips"><li>${P.tip}</li>${iso>lim?`<li>ISOが足りません。シャッターを1/${Math.max(60,M.ss/2)}に下げる、窓や照明に近づく、または R50 V に任せる。</li>`:''}</ul>
+    </div></div>`;
+  };
+  const canonCard=(primary)=>{
+    const lensKey=(P.k==='gym'||(P.k==='sunny'&&st.move==='run'))?'RF-S55-210':'RF-S14-30';
+    const L=LENS[lensKey];const N=L.use;const iso=isoNeed(N,M.ss,P.ev);
+    return `<div class="card"><div class="hd"><span class="cam canon">R50 V</span><h2>${st.goal==='record'?'記録・動画':'動きを止める'}</h2>${primary?'':'<span class="note" style="margin-left:auto">サブ</span>'}</div><div class="bd">
+      <div class="lcd"><div><small>モード</small><b>${st.move==='run'?'Tv':'Av'}</b></div><div><small>シャッター</small><b>1/${M.ss}</b></div><div><small>ISO</small><b>AUTO</b></div><div><small>露出補正</small><b>${P.k==='back'||P.k.match(/window|night|shrine/)?'+2/3':P.k==='gym'?'0':'+1/3'}</b></div></div>
+      ${meter(iso,12800)}
+      <table class="kv">
+        <tr><td>レンズ</td><td>${L.name}</td></tr>
+        <tr><td>AF</td><td>サーボAF／AFエリア 全域／検出する被写体 人物／瞳検出 する</td></tr>
+        <tr><td>ドライブ</td><td>${st.move==='still'?'1枚撮影':'高速連続撮影'}</td></tr>
+        <tr><td>ISO上限</td><td>オートの上限 12800</td></tr>
+      </table>
+      <ul class="tips">${st.goal==='record'?'<li>動画は手ブレ補正を入にし、子どもの目線の高さで。ズームはパワーズームでゆっくり。</li>':''}
+      ${iso>12800?'<li>レンズが暗いので室内ではISOが足りません。止まっている瞬間を狙うか、X-T5＋XF35に持ち替え。</li>':''}
+      <li>${P.k==='gym'?'体育館は光がちらつくことがある。縞が出たら電子シャッターをやめ、メカ（電子先幕）に。':'AFは全域任せ。構図だけ考えて連写で歩留まりを取る。'}</li></ul>
+    </div></div>`;
+  };
+  h+=`<div class="note" style="margin:14px 2px 0">${useCanon?'動きが大きい・記録重視なので <b style="color:#ff9a90">R50 V</b> が主役。X-T5はじっとした瞬間に。':'じっくり撮れる場面なので <b style="color:var(--fuji)">X-T5</b> が主役。動き出したら R50 V に任せる。'}　光の目安：EV${P.ev}</div>`;
+  h+=useCanon?canonCard(true)+fujiCard(false):fujiCard(true)+canonCard(false);
+  $('rec').innerHTML=h;
+}
+chips('cPlace',PLACES,'place',recommend);chips('cMove',MOVES,'move',recommend);chips('cGoal',GOALS,'goal',recommend);recommend();
+
+/* ---------- レシピ画面 ---------- */
+$('recipes').innerHTML=RE.map(r=>`<details class="card rc" style="--sw:${r.sw}"><summary><span class="no">${r.id}</span><span class="nm">${r.name}</span><span class="bs">${r.base}<br>${r.lens}</span><span class="sb">${r.sub}</span></summary>
+  <div class="bd"><table class="kv"><tr><td>フィルムシミュレーション</td><td>${r.base}</td></tr>${r.p.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
+  <tr><td>推奨ISO</td><td>${r.iso}</td></tr><tr><td>推奨露出補正</td><td>${r.ev}</td></tr></table></div></details>`).join('');
+
+/* ---------- 露出シミュレーター ---------- */
+const Fv=[1.4,1.8,2,2.8,3.5,4,4.8,5.6,6.4,8,11,13,16];
+const SSv=[8,15,30,60,125,250,500,1000,2000,4000,8000,16000];
+const Iv=[125,200,400,800,1600,3200,6400,12800];
+const Lv=[{n:'XF23 F2',fl:23,min:2},{n:'XF35 F1.4',fl:35,min:1.4},{n:'XF18-55（55mm）',fl:55,min:4},{n:'XF55-200（135mm）',fl:135,min:4.8}];
+const Dv=[0.5,1,1.5,2,3,5];
+const LIGHTS=[{k:'sun',t:'晴れの屋外',ev:14.5},{k:'shade',t:'日陰・曇り',ev:12},{k:'win',t:'窓辺',ev:8.5},{k:'room',t:'室内灯',ev:6.5},{k:'night',t:'夜の室内',ev:5.5}];
+let ex={F:1,S:5,I:1,L:1,D:2,light:'win',move:'walk'};
+try{const s=JSON.parse(localStorage.getItem('camnavi-exp')||'null');if(s)ex=Object.assign(ex,s)}catch(e){}
+const sEx=()=>{try{localStorage.setItem('camnavi-exp',JSON.stringify(ex))}catch(e){}};
+['F','S','I','L','D'].forEach(k=>{const el=$('r'+k);el.max=(k==='F'?Fv:k==='S'?SSv:k==='I'?Iv:k==='L'?Lv:Dv).length-1;el.value=ex[k];el.addEventListener('input',()=>{ex[k]=+el.value;sEx();drawExp()})});
+function exChips(id,list,key){const el=$(id);el.innerHTML='';list.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.t;b.classList.toggle('on',ex[key]===o.k);
+  b.addEventListener('click',()=>{ex[key]=o.k;sEx();exChips(id,list,key);drawExp()});el.appendChild(b)})}
+exChips('eLight',LIGHTS,'light');exChips('eMove',MOVES,'move');
+
+// 背景：ボケ玉と木々。被写体：子どもの模式図
+(function(){
+  let bg='<defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fb4c9"/><stop offset=".55" stop-color="#c9b48a"/><stop offset="1" stop-color="#6f5a3e"/></linearGradient></defs><rect width="300" height="200" fill="url(#g1)"/>';
+  const rnd=(a,s=1)=>{let x=Math.sin(a*12.9898+s*78.233)*43758.5453;return x-Math.floor(x)};
+  for(let i=0;i<26;i++){bg+=`<circle cx="${(rnd(i)*300).toFixed(1)}" cy="${(20+rnd(i,2)*110).toFixed(1)}" r="${(4+rnd(i,3)*9).toFixed(1)}" fill="${['#fff3c4','#ffd9a0','#cfe8ff','#ffffff'][i%4]}" opacity=".75"/>`}
+  for(let i=0;i<6;i++){const x=20+i*52;bg+=`<rect x="${x}" y="60" width="9" height="120" fill="#3d3225" opacity=".55"/><circle cx="${x+4}" cy="58" r="26" fill="#4f6b3a" opacity=".6"/>`}
+  bg+='<rect y="168" width="300" height="32" fill="#5a4a34"/>';
+  $('bg').innerHTML=bg;
+  $('subj').innerHTML=`<g id="kid"><ellipse cx="150" cy="190" rx="34" ry="5" fill="#000" opacity=".25"/>
+   <path d="M128 112 q22 -14 44 0 l10 66 h-64z" fill="#d4504a"/><path d="M128 112 q22 -6 44 0" stroke="#f3e2c8" stroke-width="4" fill="none"/>
+   <circle cx="150" cy="86" r="22" fill="#f1c9a8"/><path d="M128 84 q2 -28 22 -28 q22 0 22 28 q-6 -14 -22 -14 q-16 0 -22 14z" fill="#2b1d16"/>
+   <circle cx="142" cy="88" r="2.4" fill="#2b1d16"/><circle cx="158" cy="88" r="2.4" fill="#2b1d16"/><path d="M144 97 q6 5 12 0" stroke="#b5584e" stroke-width="2" fill="none" stroke-linecap="round"/>
+   <circle cx="138" cy="94" r="4" fill="#f2a7a0" opacity=".5"/><circle cx="162" cy="94" r="4" fill="#f2a7a0" opacity=".5"/>
+   <rect x="140" y="178" width="8" height="8" fill="#3a2a22"/><rect x="152" y="178" width="8" height="8" fill="#3a2a22"/></g>`;
+})();
+const noiseCv=$('noise'),nctx=noiseCv.getContext('2d');
+function drawNoise(amount){
+  const w=noiseCv.width,h=noiseCv.height,img=nctx.createImageData(w,h);
+  for(let i=0;i<img.data.length;i+=4){const v=Math.random()*255;img.data[i]=v;img.data[i+1]=v*0.95;img.data[i+2]=v*1.05;img.data[i+3]=255}
+  nctx.putImageData(img,0,0);noiseCv.style.opacity=amount.toFixed(2);
+}
+function drawExp(){
+  const N=Math.max(Fv[ex.F],Lv[ex.L].min),t=1/SSv[ex.S],iso=Iv[ex.I],L=Lv[ex.L],s=Dv[ex.D]*1000,f=L.fl;
+  const light=LIGHTS.find(l=>l.k===ex.light),mv=MOVES.find(m=>m.k===ex.move);
+  $('tF').textContent='F'+N+(N!==Fv[ex.F]?'（開放）':'');$('tS').textContent='1/'+SSv[ex.S]+'秒';$('tI').textContent='ISO '+iso;$('tL').textContent=L.n;$('tD').textContent=Dv[ex.D]+' m';
+  // 露出差（+で明るい）
+  const evSet=Math.log2(N*N/t)-Math.log2(iso/100),diff=light.ev-evSet;
+  const bright=Math.max(0.08,Math.min(4,Math.pow(2,diff*0.75)));
+  $('scene').style.filter=`brightness(${bright.toFixed(3)})${diff>1.5?' contrast(.8) saturate(.7)':''}`;
+  $('oExp').textContent=(diff>=0?'+':'−')+Math.abs(diff).toFixed(1)+' EV';
+  $('oExp').style.color=Math.abs(diff)<=0.7?'var(--ok)':Math.abs(diff)<=1.7?'var(--warn)':'var(--bad)';
+  // 被写体ブレ（センサー上の移動量／許容錯乱円0.02mm）
+  const c=0.02,moveMm=mv.v*1000*t,onSensor=moveMm*f/(s-f),ratio=onSensor/c;
+  $('oMot').textContent=moveMm<1?'ほぼなし':moveMm.toFixed(moveMm<10?1:0)+' mm';
+  $('oMot').style.color=ratio<=3?'var(--ok)':ratio<=8?'var(--warn)':'var(--bad)';
+  const mb=Math.min(14,Math.max(0,ratio-2)*0.6);
+  const kid=document.getElementById('kid');kid.style.filter=mb>0.6?`blur(${(mb*0.35).toFixed(2)}px)`:'none';
+  kid.setAttribute('transform',mb>0.6?`translate(${(-mb*0.4).toFixed(1)} 0)`:'');
+  // 被写界深度
+  const H=f*f/(N*c)+f,near=s*(H-f)/(H+s-2*f),far=s<H?s*(H-f)/(H-s):Infinity;
+  const dof=far===Infinity?Infinity:far-near;
+  $('oDof').textContent=dof===Infinity?'無限遠まで':dof>=1000?(dof/1000).toFixed(1)+' m':Math.round(dof/10)+' cm';
+  $('oDof').style.color=dof<60?'var(--warn)':'var(--text)';
+  // 背景ボケ（背景は被写体の3m後ろ）
+  const sb=s+3000,bk=f*f*(sb-s)/(N*sb*(s-f))/c;
+  $('bg').style.filter=`blur(${Math.min(9,bk*0.09).toFixed(2)}px)`;
+  drawNoise(Math.max(0,Math.min(0.42,(Math.log2(iso/200))*0.065)));
+  // アドバイス
+  const adv=[];
+  if(diff<-0.7)adv.push(`暗すぎます。あと${(-diff).toFixed(1)}段：ISOを上げる、F値を小さく、またはシャッターを遅く（ただしブレに注意）。`);
+  if(diff>0.7)adv.push(`明るすぎます。${diff.toFixed(1)}段絞るか、シャッターを速く。`);
+  if(ratio>8)adv.push(`動きに対してシャッターが遅いです。${mv.t}なら 1/${mv.ss} 以上が目安。`);
+  if(dof<40&&dof!==Infinity)adv.push('ピントの合う奥行きが数cm〜十数cm。瞳AFで目に合わせないと鼻や耳に外れます。');
+  if(iso>=6400)adv.push('ISO6400以上はノイズが目立ちはじめます。X-T5の高感度NRはレシピ側で設定済み。');
+  if(!adv.length)adv.push('ちょうど良い組み合わせです。');
+  $('eAdvice').innerHTML=adv.join('<br>');
+}
+drawExp();
+
+/* ---------- 七五三 ---------- */
+const CHECKS=[
+ 'X-T5のバッテリー（NP-W235）を満充電し予備を1本',
+ 'R50 Vのバッテリーを満充電',
+ 'SDカードの空き容量を確認（両機とも）',
+ 'XF35mmF1.4にブラックミストNo.05が付いているか確認',
+ 'XF18-55をバッグへ（全身・家族集合用）',
+ 'C1 HADA35・C2 FUDAN・C3 OSOTO・C4 AKARI35の呼び出しを確認',
+ '日付・時刻設定の確認（両機）',
+ 'R50 Vの動画設定（手ブレ補正 入）を確認',
+];
+let ck={};try{ck=JSON.parse(localStorage.getItem('camnavi-753')||'{}')}catch(e){}
+function renderChecks(){
+  $('checks').innerHTML=CHECKS.map((c,i)=>`<label class="ck${ck[i]?' done':''}"><input type="checkbox" data-i="${i}"${ck[i]?' checked':''}><span>${c}</span></label>`).join('');
+  $('ckCount').textContent=`${Object.values(ck).filter(Boolean).length}／${CHECKS.length}`;
+  $('checks').querySelectorAll('input').forEach(el=>el.addEventListener('change',()=>{ck[el.dataset.i]=el.checked;try{localStorage.setItem('camnavi-753',JSON.stringify(ck))}catch(e){}renderChecks()}));
+}
+renderChecks();
+const FLOW=[
+ ['鳥居','R50 V','家族で鳥居をくぐる後ろ姿・手をつなぐ姿を動画と連写で。X-T5はC3 OSOTO（晴れ）かC2 FUDAN（曇り）、XF18-55で全身。'],
+ ['参道','X-T5','歩く姿はAF-C・ゾーン・CLで。止まった瞬間はXF35＋C1 HADA35に切り替え、F2で顔を大きく。'],
+ ['手水舎','X-T5','手元のアップはXF35・F2。水しぶきを止めるなら1/500以上。'],
+ ['拝殿前','X-T5','参拝の後ろ姿は逆光になりやすい。C1で露出補正+2/3〜+1。'],
+ ['境内の木陰','X-T5','千歳飴を持った全身はXF18-55の35mm付近・F4・C2 FUDAN（WBオート）。'],
+ ['社殿内','—','祈祷中は撮影しない。撮影可の案内がある場合はC4 AKARI35・フラッシュなし。'],
+];
+$('flow').innerHTML=FLOW.map(([s,c,t])=>`<div class="step"><span class="s">${s}</span><span><b style="color:${c==='R50 V'?'#ff9a90':c==='X-T5'?'var(--fuji)':'var(--muted)'};font-size:12px">${c}</b><small>${t}</small></span></div>`).join('');
+
+/* ---------- タブ ---------- */
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ['now','exp','rec','753'].forEach(v=>$('v-'+v).hidden=v!==b.dataset.tab);window.scrollTo(0,0);
+  if(b.dataset.tab==='exp')drawExp();
+}));
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+})();
+</script>
+</body>
+</html>
